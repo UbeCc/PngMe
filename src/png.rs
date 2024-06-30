@@ -14,11 +14,13 @@
 // Pass all of the unit tests.
 
 #![allow(unused_variables)]
+use clap::builder::Str;
+
 use crate::{Error, Result};
 use crate::chunk::{self, Chunk};
 
 #[derive(Debug)]
-struct Png {
+pub struct Png {
     chunks: Vec<chunk::Chunk>
 }
 
@@ -92,6 +94,36 @@ impl Png {
         }
         bytes
     }
+
+    pub fn encode(input_file: &std::path::Path, output_file: &std::path::Path, message: &str, chunk_type: &str) -> Result<String> {
+        let mut png = Png::try_from(std::fs::read(input_file)?.as_slice())?;
+        let chunk = Chunk::new(chunk_type.parse()?, message.as_bytes().to_vec());
+        png.append_chunk(chunk);
+        std::fs::write(output_file, png.as_bytes())?;
+        Ok("Encoded successfully".to_string())
+    }
+
+    pub fn decode(path: &std::path::Path, chunk_type: &str) -> Result<String> {
+        let png = Png::try_from(std::fs::read(path)?.as_slice())?;
+        let chunk = png.chunk_by_type(chunk_type).ok_or("Chunk not found")?;
+        println!("{}", chunk.data_as_string()?);
+        Ok("Decoded successfully".to_string())
+    }
+
+    pub fn remove(path: &std::path::Path, chunk_type: &str) -> Result<String> {
+        let mut png = Png::try_from(std::fs::read(path)?.as_slice())?;
+        png.remove_first_chunk(chunk_type)?;
+        std::fs::write(path, png.as_bytes())?;
+        Ok("Removed successfully".to_string())
+    }
+
+    pub fn print(path: &std::path::Path) -> Result<(String)> {
+        let png = Png::try_from(std::fs::read(path)?.as_slice())?;
+        for chunk in png.chunks() {
+            println!("Type: {}, Data: {}", chunk.chunk_type(), chunk.data_as_string()?);
+        }
+        Ok("Printed successfully".to_string())
+    }
 }
 
 #[cfg(test)]
@@ -116,8 +148,6 @@ mod tests {
     }
 
     fn chunk_from_strings(chunk_type: &str, data: &str) -> Result<Chunk> {
-        use std::str::FromStr;
-
         let chunk_type = ChunkType::from_str(chunk_type)?;
         let data: Vec<u8> = data.bytes().collect();
 
